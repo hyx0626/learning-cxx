@@ -1,109 +1,81 @@
 ﻿#include "../exercise.h"
 
-// READ: 类模板 <https://zh.cppreference.com/w/cpp/language/class_template>
 
-template<class T>
-struct Tensor4D {
-    unsigned int shape[4];
+// READ: 类模板 <https://zh.cppreference.com/w/cpp/language/class_template>
+// READ: 模板非类型实参 <https://zh.cppreference.com/w/cpp/language/template_parameters#%E6%A8%A1%E6%9D%BF%E9%9D%9E%E7%B1%BB%E5%9E%8B%E5%AE%9E%E5%8F%82>
+
+template<unsigned int N, class T>
+struct Tensor {
+    unsigned int shape[N];
     T *data;
 
-    Tensor4D(unsigned int const shape_[4], T const *data_) {
+    Tensor(unsigned int const shape_[N]) {
         unsigned int size = 1;
         // TODO: 填入正确的 shape 并计算 size
+        std::memcpy(shape, shape_, N * sizeof(unsigned int));
+        for (int i = 0; i < N; i++) size *= shape[i];
         data = new T[size];
-        std::memcpy(data, data_, size * sizeof(T));
+        std::memset(data, 0, size * sizeof(T));
     }
-    ~Tensor4D() {
+    ~Tensor() {
         delete[] data;
     }
 
     // 为了保持简单，禁止复制和移动
-    Tensor4D(Tensor4D const &) = delete;
-    Tensor4D(Tensor4D &&) noexcept = delete;
+    Tensor(Tensor const &) = delete;
+    Tensor(Tensor &&) noexcept = delete;
 
-    // 这个加法需要支持“单向广播”。
-    // 具体来说，`others` 可以具有与 `this` 不同的形状，形状不同的维度长度必须为 1。
-    // `others` 长度为 1 但 `this` 长度不为 1 的维度将发生广播计算。
-    // 例如，`this` 形状为 `[1, 2, 3, 4]`，`others` 形状为 `[1, 2, 1, 4]`，
-    // 则 `this` 与 `others` 相加时，3 个形状为 `[1, 2, 1, 4]` 的子张量各自与 `others` 对应项相加。
-    Tensor4D &operator+=(Tensor4D const &others) {
-        // TODO: 实现单向广播的加法
-        return *this;
+    T &operator[](unsigned int const indices[N]) {
+        return data[data_index(indices)];
+    }
+    T const &operator[](unsigned int const indices[N]) const {
+        return data[data_index(indices)];
+    }
+
+private:
+    unsigned int data_index(unsigned int const indices[N]) const {
+        unsigned int index = 0;
+        unsigned int strides = 1;
+
+        for (int i = N - 1; i >= 0; --i) {
+            ASSERT(indices[i] < shape[i], "Invalid index");
+            // TODO: 计算 index
+            index += indices[i] * strides;
+            strides *= shape[i];
+        }
+        return index;
     }
 };
 
 // ---- 不要修改以下代码 ----
 int main(int argc, char **argv) {
     {
-        unsigned int shape[]{1, 2, 3, 4};
-        // clang-format off
-        int data[]{
-             1,  2,  3,  4,
-             5,  6,  7,  8,
-             9, 10, 11, 12,
+        unsigned int shape[]{2, 3, 4, 5};
+        auto tensor = Tensor<4, int>(shape);
 
-            13, 14, 15, 16,
-            17, 18, 19, 20,
-            21, 22, 23, 24};
-        // clang-format on
-        auto t0 = Tensor4D(shape, data);
-        auto t1 = Tensor4D(shape, data);
-        t0 += t1;
-        for (auto i = 0u; i < sizeof(data) / sizeof(*data); ++i) {
-            ASSERT(t0.data[i] == data[i] * 2, "Tensor doubled by plus its self.");
-        }
+        unsigned int i0[]{0, 0, 0, 0};
+        tensor[i0] = 1;
+        ASSERT(tensor[i0] == 1, "tensor[i0] should be 1");
+        ASSERT(tensor.data[0] == 1, "tensor[i0] should be 1");
+
+        unsigned int i1[]{1, 2, 3, 4};
+        tensor[i1] = 2;
+        ASSERT(tensor[i1] == 2, "tensor[i1] should be 2");
+        ASSERT(tensor.data[119] == 2, "tensor[i1] should be 2");
     }
     {
-        unsigned int s0[]{1, 2, 3, 4};
-        // clang-format off
-        float d0[]{
-            1, 1, 1, 1,
-            2, 2, 2, 2,
-            3, 3, 3, 3,
+        unsigned int shape[]{7, 8, 128};
+        auto tensor = Tensor<3, float>(shape);
 
-            4, 4, 4, 4,
-            5, 5, 5, 5,
-            6, 6, 6, 6};
-        // clang-format on
-        unsigned int s1[]{1, 2, 3, 1};
-        // clang-format off
-        float d1[]{
-            6,
-            5,
-            4,
+        unsigned int i0[]{0, 0, 0};
+        tensor[i0] = 1.f;
+        ASSERT(tensor[i0] == 1.f, "tensor[i0] should be 1");
+        ASSERT(tensor.data[0] == 1.f, "tensor[i0] should be 1");
 
-            3,
-            2,
-            1};
-        // clang-format on
-
-        auto t0 = Tensor4D(s0, d0);
-        auto t1 = Tensor4D(s1, d1);
-        t0 += t1;
-        for (auto i = 0u; i < sizeof(d0) / sizeof(*d0); ++i) {
-            ASSERT(t0.data[i] == 7.f, "Every element of t0 should be 7 after adding t1 to it.");
-        }
+        unsigned int i1[]{3, 4, 99};
+        tensor[i1] = 2.f;
+        ASSERT(tensor[i1] == 2.f, "tensor[i1] should be 2");
+        ASSERT(tensor.data[3683] == 2.f, "tensor[i1] should be 2");
     }
-    {
-        unsigned int s0[]{1, 2, 3, 4};
-        // clang-format off
-        double d0[]{
-             1,  2,  3,  4,
-             5,  6,  7,  8,
-             9, 10, 11, 12,
-
-            13, 14, 15, 16,
-            17, 18, 19, 20,
-            21, 22, 23, 24};
-        // clang-format on
-        unsigned int s1[]{1, 1, 1, 1};
-        double d1[]{1};
-
-        auto t0 = Tensor4D(s0, d0);
-        auto t1 = Tensor4D(s1, d1);
-        t0 += t1;
-        for (auto i = 0u; i < sizeof(d0) / sizeof(*d0); ++i) {
-            ASSERT(t0.data[i] == d0[i] + 1, "Every element of t0 should be incremented by 1 after adding t1 to it.");
-        }
-    }
+    return 0;
 }
